@@ -1,32 +1,23 @@
 package ask
 
 import (
-	"bufio"
 	"fmt"
-	"os"
 	"strings"
+
+	"github.com/LeonardoGrigolettoDev/generate-gin-schema/cmd/generator/model"
+	templates "github.com/LeonardoGrigolettoDev/generate-gin-schema/cmd/generator/templates/postgres"
 )
 
 func PostgreSQLAskForTypeOfAction() {
-	reader := bufio.NewReader(os.Stdin)
-
-	// Pergunta ao usuário
-	fmt.Println("\n\nWhich type of action would you do?")
-	fmt.Println("1. Generate table and schema")
-	fmt.Println("2. Remove table and schema")
-	fmt.Println("3. Setup it")
-	fmt.Print("Action type: ")
-
-	choice, _ := reader.ReadString('\n')
-
-	// Responde com a escolha
+	questionStr := "\n\nWhich type of action would you do?\n1. Generate table and schema\n2. Remove table and schema\n3. Setup it"
+	choice := AskForSimpleQuestion(questionStr, 3, true)
 	switch choice {
-	case "1\n":
+	case "1":
 		fmt.Println("Generate table and schema")
 		PostgreSQLAskForTableDetails()
-	case "2\n":
+	case "2":
 		fmt.Println("Remove table and schema (not implemented)")
-	case "3\n":
+	case "3":
 		fmt.Println("Setup it (not implemented).")
 	default:
 		fmt.Println("\nNot a listed action.")
@@ -35,124 +26,246 @@ func PostgreSQLAskForTypeOfAction() {
 }
 
 func PostgreSQLAskForTableDetails() {
-	reader := bufio.NewReader(os.Stdin)
-
-	fmt.Println("\n\nWhat is the name of the new DB table?")
-	tableName, _ := reader.ReadString('\n')
-
-	fmt.Println("\n\nWhat is the name of the column primary key?")
-	primaryKeyName, _ := reader.ReadString('\n')
-	primaryKeyPKType := PostgreSQLAskForPrimaryKeyDetails(reader)
-	columnSchema := PostgreSQLAskForColumnSchema(reader)
-	fmt.Println(tableName, primaryKeyName, primaryKeyPKType, columnSchema)
+	tableNameQuestion := "\n\nWhat is the name of the new DB table?"
+	tableName := strings.ReplaceAll(AskForSimpleQuestion(tableNameQuestion, 0, false), "\n", "")
+	primaryKeyNameQuestion := "\n\nWhat is the name of the column primary key?"
+	primaryKeyName := strings.ReplaceAll(AskForSimpleQuestion(primaryKeyNameQuestion, 0, false), "\n", "")
+	primaryKeyPKType := PostgreSQLAskForPrimaryKeyDetails()
+	columnSchema := PostgreSQLAskForColumnSchema()
+	queryStr := templates.GetQueryForCreationTableOnDB(tableName, primaryKeyName, primaryKeyPKType, columnSchema)
+	fmt.Println("\n\nQuery generated:" + "\n" + queryStr)
 }
 
-func PostgreSQLAskForPrimaryKeyDetails(reader *bufio.Reader) string {
-	fmt.Println("\n\nWhat is the ID type of the column primary key?")
-	fmt.Println("1. Serial")
-	fmt.Println("2. Bigserial")
-	fmt.Println("3. UUID")
-	fmt.Println("4. INTEGER")
-	fmt.Println("5. Composite Keys")
-	primaryKeyType, _ := reader.ReadString('\n')
+func PostgreSQLAskForPrimaryKeyDetails() string {
+	questionStr := "\n\nWhat is the ID type of the column primary key?\n1. Serial\n2. Bigserial\n3. UUID\n4. INTEGER\n5. Composite Keys"
+	primaryKeyType := AskForSimpleQuestion(questionStr, 4, true)
 	switch primaryKeyType {
-	case "1\n":
+	case "1":
 		fmt.Println("Serial")
-	case "2\n":
+		primaryKeyType = "SERIAL"
+	case "2":
 		fmt.Println("Bigserial")
-	case "3\n":
+		primaryKeyType = "BIGSERIAL"
+	case "3":
 		fmt.Println("UUID")
-	case "4\n":
+		primaryKeyType = "UUID"
+	case "4":
 		fmt.Println("INTEGER")
-	case "5\n":
-		fmt.Println("Composite Keys")
+		primaryKeyType = "INTEGER"
+	//TODO IMPLEMENTAR AQUI
+	// case "5\n":
+	// 	fmt.Println("Composite Keys")
+	// 	primaryKeyType = ""
 	default:
 		fmt.Println("\n\nNot a listed action.")
-		PostgreSQLAskForPrimaryKeyDetails(reader)
 	}
 	return primaryKeyType
 }
 
-func PostgreSQLAskForColumnSchema(reader *bufio.Reader) [][]string {
-	var columns [][]string
-
+func PostgreSQLAskForColumnSchema() []model.Column {
+	var columns []model.Column
+	columnTypeQuestion := `
+	+----------------------+-----------------------+
+	|      Category        |        Options        |
+	+----------------------+-----------------------+
+	| NUMBERS (1-6)        | 1. SMALLINT           |
+	|                      | 2. INTEGER            |
+	|                      | 3. BIGINT             |
+	|                      | 4. DECIMAL/NUMERIC    |
+	|                      | 5. REAL               |
+	|                      | 6. DOUBLE PRECISION   |
+	+----------------------+-----------------------+
+	| TEXT (7-9)           | 7. CHAR               |
+	|                      | 8. VARCHAR            |
+	|                      | 9. TEXT               |
+	+----------------------+-----------------------+
+	| DATETIME (10-14)     | 10. DATE              |
+	|                      | 11. TIME              |
+	|                      | 12. TIMESTAMP         |
+	|                      | 13. TIMESTAMPTZ       |
+	|                      | 14. INTERVAL          |
+	+----------------------+-----------------------+
+	| BOOLEAN (15)         | 15. BOOLEAN           |
+	+----------------------+-----------------------+
+	| GEOMETRIC (16-22)    | 16. POINT             |
+	|                      | 17. LINE              |
+	|                      | 18. LSEG              |
+	|                      | 19. BOX               |
+	|                      | 20. PATH              |
+	|                      | 21. POLYGON           |
+	|                      | 22. CIRCLE            |
+	+----------------------+-----------------------+
+	| NET (23-25)          | 23. CIDR              |
+	|                      | 24. INET              |
+	|                      | 25. MACADDR           |
+	+----------------------+-----------------------+
+	| JSON (26-27)         | 26. JSON              |
+	|                      | 27. JSONB             |
+	+----------------------+-----------------------+
+	| UUID (28)            | 28. UUID              |
+	+----------------------+-----------------------+
+	| ARRAY (29)           | 29. Array             |
+	+----------------------+-----------------------+
+	| INTERVAL (30-34)     | 30. DATERANGE         |
+	|                      | 31. INT4RANGE         |
+	|                      | 32. NUMRANGE          |
+	|                      | 33. TSRANGE           |
+	|                      | 34. TSTZRANGE         |
+	+----------------------+-----------------------+
+	`
 	for {
-		fmt.Println("What is the name of the column (or type 'done' to finish)?")
-		columnName, _ := reader.ReadString('\n')
-		columnName = strings.TrimSpace(columnName)
 
+		columnName := AskForSimpleQuestion("\n\nWhat is the name of the column (or type 'done' to finish)?", 0, false)
+		columnName = strings.TrimSpace(columnName)
 		if columnName == "done" {
 			break
 		}
 
-		fmt.Println("What is the type of the data to this column?")
-		fmt.Println("\nNUMBERS (1-6)")
-		fmt.Println("1. SMALLINT")
-		fmt.Println("2. INTEGER")
-		fmt.Println("3. BIGINT")
-		fmt.Println("4. DECIMAL/NUMERIC")
-		fmt.Println("5. REAL")
-		fmt.Println("6. DOUBLE PRECISION")
-		fmt.Println("\nTEXT (7-9)")
-		fmt.Println("7. CHAR")
-		fmt.Println("8. VARCHAR")
-		fmt.Println("9. TEXT")
-		fmt.Println("\nDATETIME (10-14)")
-		fmt.Println("10. DATE")
-		fmt.Println("11. TIME")
-		fmt.Println("12. TIMESTAMP")
-		fmt.Println("13. TIMESTAMPTZ")
-		fmt.Println("14. INTERVAL")
-		fmt.Println("\nBOOLEAN (15)")
-		fmt.Println("15. BOOLEAN")
-		fmt.Println("\nGEOMETRIC (16-22)")
-		fmt.Println("16. POINT")
-		fmt.Println("17. LINE")
-		fmt.Println("18. LSEG")
-		fmt.Println("19. BOX")
-		fmt.Println("20 PATH")
-		fmt.Println("21. POLYGON")
-		fmt.Println("22. CIRCLE")
-		fmt.Println("\nNET (23-25)")
-		fmt.Println("23. CIDR")
-		fmt.Println("24. INET")
-		fmt.Println("25. MACADDR")
-		fmt.Println("\nJSON (26-27)")
-		fmt.Println("26. JSON")
-		fmt.Println("27. JSONB")
-		fmt.Println("\nUUID (28)")
-		fmt.Println("28. UUID")
-		fmt.Println("\nArray (29)")
-		fmt.Println("29. Array")
-		fmt.Println("\nInterval (30-34)")
-		fmt.Println("30. DATERANGE")
-		fmt.Println("31. INT4RANGE")
-		fmt.Println("32. NUMRANGE")
-		fmt.Println("33. TSRANGE")
-		fmt.Println("34. TSTZRANGE")
-
-		columnType, _ := reader.ReadString('\n')
+		columnType := AskForSimpleQuestion(columnTypeQuestion, 34, true)
 		switch columnType {
-		case "1\n":
-			fmt.Println("Serial")
-		case "2\n":
-			fmt.Println("Bigserial")
-		case "3\n":
-			fmt.Println("UUID")
-		case "4\n":
+		case "1":
+			fmt.Println("SMALLINT")
+			columnType = "SMALLINT"
+
+		case "2":
 			fmt.Println("INTEGER")
-		case "5\n":
-			fmt.Println("Composite Keys")
+			columnType = "INTEGER"
+
+		case "3":
+			fmt.Println("BIGINT")
+			columnType = "BIGINT"
+
+		case "4":
+			fmt.Println("DECIMAL/NUMERIC")
+			columnType = "DECIMAL/NUMERIC"
+
+		case "5":
+			fmt.Println("REAL")
+			columnType = "REAL"
+
+		case "6":
+			fmt.Println("CHAR")
+			columnType = "CHAR"
+
+		case "7":
+			fmt.Println("VARCHAR")
+			columnType = "VARCHAR"
+
+		case "8":
+			fmt.Println("TEXT")
+			columnType = "TEXT"
+
+		case "9":
+			fmt.Println("DATE")
+			columnType = "DATE"
+
+		case "10":
+			fmt.Println("TIME")
+			columnType = "TIME"
+
+		case "11":
+			fmt.Println("TIMESTAMP")
+			columnType = "TIMESTAMP"
+
+		case "12":
+			fmt.Println("TIMESTAMPTZ")
+			columnType = "TIMESTAMPTZ"
+
+		case "13":
+			fmt.Println("INTERVAL")
+			columnType = "INTERVAL"
+
+		case "14":
+			fmt.Println("BOOLEAN")
+			columnType = "BOOLEAN"
+
+		case "15":
+			fmt.Println("POINT")
+			columnType = "POINT"
+
+		case "16":
+			fmt.Println("LINE")
+			columnType = "LINE"
+
+		case "17":
+			fmt.Println("LSEG")
+			columnType = "LSEG"
+
+		case "18":
+			fmt.Println("BOX")
+			columnType = "BOX"
+
+		case "19":
+			fmt.Println("PATH")
+			columnType = "PATH"
+
+		case "20":
+			fmt.Println("POLYGON")
+			columnType = "POLYGON"
+
+		case "21":
+			fmt.Println("CIRCLE")
+			columnType = "CIRCLE"
+
+		case "22":
+			fmt.Println("CIDR")
+			columnType = "CIDR"
+
+		case "23":
+			fmt.Println("INET")
+			columnType = "INET"
+
+		case "24":
+			fmt.Println("MACADDR")
+			columnType = "MACADDR"
+
+		case "25":
+			fmt.Println("JSON")
+			columnType = "JSON"
+
+		case "26":
+			fmt.Println("JSONB")
+			columnType = "JSONB"
+
+		case "27":
+			fmt.Println("UUID")
+			columnType = "UUID"
+
+		case "28":
+			fmt.Println("Array")
+			columnType = "Array"
+
+		case "29":
+			fmt.Println("DATERANGE")
+			columnType = "DATERANGE"
+
+		case "30":
+			fmt.Println("INT4RANGE")
+			columnType = "INT4RANGE"
+
+		case "31":
+			fmt.Println("NUMRANGE")
+			columnType = "NUMRANGE"
+
+		case "32":
+			fmt.Println("TSRANGE")
+			columnType = "TSRANGE"
+
+		case "33":
+			fmt.Println("TSTZRANGE")
+			columnType = "TSTZRANGE"
+
 		default:
 			fmt.Println("\n\nNot a listed action.")
-			PostgreSQLAskForPrimaryKeyDetails(reader)
 		}
 		columnType = strings.TrimSpace(columnType)
-
-		// Adicionando a coluna à lista
-		columns = append(columns, []string{columnName, columnType})
+		formatedColumn := model.Column{
+			ColumnName:    columnName,
+			ColumnType:    columnType,
+			ColumnOptions: "",
+		}
+		columns = append(columns, formatedColumn)
 	}
-
 	return columns
 }
 
